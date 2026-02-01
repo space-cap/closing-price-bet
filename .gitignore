@@ -20,11 +20,14 @@ wheels/
 .installed.cfg
 *.egg
 
-# === Virtual Environment ===
+# === Virtual Environment (uv / pip) ===
+.venv/
 venv/
 ENV/
 env/
-.venv/
+
+# === uv ===
+# uv.lock은 커밋해야 함 (잠금 파일)
 
 # === Environment Variables ===
 .env

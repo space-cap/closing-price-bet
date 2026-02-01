@@ -50,8 +50,8 @@ export default function Home() {
                     <div className="card">
                         <pre style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.8 }}>
                             {`# 1. 백엔드 서버 실행
-pip install -r requirements.txt
-python flask_app.py
+uv sync
+uv run python flask_app.py
 
 # 2. 프론트엔드 실행
 cd frontend
@@ -59,8 +59,8 @@ npm install
 npm run dev
 
 # 3. 스크리너 실행
-python screener.py
-python market_gate.py`}
+uv run python screener.py
+uv run python market_gate.py`}
                         </pre>
                     </div>
                 </div>

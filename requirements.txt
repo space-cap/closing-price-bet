@@ -8,7 +8,6 @@ yfinance
 pandas
 numpy
 pykrx
-FinanceDataReader
 
 # AI/LLM
 google-generativeai
