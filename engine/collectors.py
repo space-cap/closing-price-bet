@@ -32,72 +32,91 @@ class KRXCollector:
             await self._session.close()
     
     async def get_top_gainers(self, market: str = "KOSPI", top_n: int = 30) -> List[StockData]:
-        """상승률 상위 종목 조회"""
+        """상승률 상위 종목 조회 (FinanceDataReader 사용)"""
         try:
-            from pykrx import stock
+            import FinanceDataReader as fdr
             
-            today = datetime.now().strftime("%Y%m%d")
+            # 종목 목록 가져오기
+            listing = await asyncio.to_thread(fdr.StockListing, market)
             
-            # 동기 함수를 비동기로 실행
-            df = await asyncio.to_thread(
-                stock.get_market_ohlcv_by_ticker,
-                today,
-                market=market
-            )
-            
-            if df.empty:
-                # 오늘 데이터가 없으면 가장 최근 거래일 시도
-                yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
-                df = await asyncio.to_thread(
-                    stock.get_market_ohlcv_by_ticker,
-                    yesterday,
-                    market=market
-                )
-            
-            if df.empty:
-                print(f"[{market}] 데이터 없음")
+            if listing.empty:
+                print(f"[{market}] 종목 목록 없음")
                 return []
             
-            # 등락률 계산 및 필터링
-            df['change_pct'] = df['등락률']
-            df = df[df['change_pct'] >= self.config.min_change_pct]
-            df = df[df['change_pct'] <= self.config.max_change_pct]
-            df = df[df['거래대금'] >= self.config.min_trading_value]
-            df = df[df['종가'] >= self.config.min_price]
-            df = df[df['종가'] <= self.config.max_price]
-            
-            # 상승률 상위 N개
-            df = df.nlargest(top_n, 'change_pct')
-            
-            # 종목명 가져오기
-            ticker_names = await asyncio.to_thread(stock.get_market_ticker_name, today, market=market)
+            # 최근 10일 이내 거래일 데이터 가져오기
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=10)
             
             stocks = []
-            for code in df.index:
-                row = df.loc[code]
-                name = ticker_names.get(code, code)
-                
-                # 제외 키워드 체크
-                if any(kw in name for kw in self.config.exclude_keywords):
-                    continue
-                
-                stocks.append(StockData(
-                    code=code,
-                    name=name,
-                    market=market,
-                    close=float(row['종가']),
-                    open=float(row['시가']),
-                    high=float(row['고가']),
-                    low=float(row['저가']),
-                    change_pct=float(row['change_pct']),
-                    volume=int(row['거래량']),
-                    trading_value=int(row['거래대금']),
-                ))
+            # 시가총액 상위 종목들만 분석 (속도를 위해)
+            top_stocks = listing.nlargest(100, 'Marcap') if 'Marcap' in listing.columns else listing.head(100)
             
-            return stocks
+            for _, row in top_stocks.iterrows():
+                try:
+                    code = row['Code']
+                    name = row['Name']
+                    
+                    # 제외 키워드 체크
+                    if any(kw in name for kw in self.config.exclude_keywords):
+                        continue
+                    
+                    # 개별 종목 데이터 가져오기
+                    df = await asyncio.to_thread(
+                        fdr.DataReader, 
+                        code, 
+                        start_date.strftime("%Y-%m-%d"),
+                        end_date.strftime("%Y-%m-%d")
+                    )
+                    
+                    if df.empty or len(df) < 2:
+                        continue
+                    
+                    latest = df.iloc[-1]
+                    prev = df.iloc[-2]
+                    
+                    close = float(latest['Close'])
+                    prev_close = float(prev['Close'])
+                    change_pct = ((close - prev_close) / prev_close) * 100
+                    volume = int(latest['Volume']) if 'Volume' in df.columns else 0
+                    trading_value = close * volume
+                    
+                    # 필터링
+                    if change_pct < self.config.min_change_pct or change_pct > self.config.max_change_pct:
+                        continue
+                    if trading_value < self.config.min_trading_value:
+                        continue
+                    if close < self.config.min_price or close > self.config.max_price:
+                        continue
+                    
+                    stocks.append(StockData(
+                        code=code,
+                        name=name,
+                        market=market,
+                        close=close,
+                        open=float(latest['Open']) if 'Open' in df.columns else close,
+                        high=float(latest['High']) if 'High' in df.columns else close,
+                        low=float(latest['Low']) if 'Low' in df.columns else close,
+                        change_pct=round(change_pct, 2),
+                        volume=volume,
+                        trading_value=int(trading_value),
+                    ))
+                    
+                except Exception as e:
+                    continue
+            
+            # 상승률 순 정렬 후 상위 N개
+            stocks.sort(key=lambda x: x.change_pct, reverse=True)
+            
+            # 휴장일 여부 출력
+            if stocks:
+                print(f"   📅 [{market}] {len(stocks)}개 종목 분석 완료")
+            
+            return stocks[:top_n]
             
         except Exception as e:
             print(f"Error in get_top_gainers: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     async def get_stock_detail(self, code: str) -> Optional[StockData]:

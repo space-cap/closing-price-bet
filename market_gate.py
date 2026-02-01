@@ -128,46 +128,72 @@ class MarketGate:
         return result
     
     def _analyze_index(self, index_name: str) -> Dict:
-        """지수 분석"""
+        """지수 분석 (휴장일에도 마지막 거래일 데이터 사용)"""
         ticker = INDEX_TICKERS.get(index_name)
         if not ticker:
             return {}
         
         try:
-            data = yf.download(ticker, period="6mo", progress=False)
+            # 10일 전부터 오늘까지 데이터 요청 (긴 연휴 대비)
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=10)
+            
+            data = yf.download(
+                ticker, 
+                start=start_date.strftime("%Y-%m-%d"),
+                end=(end_date + timedelta(days=1)).strftime("%Y-%m-%d"),  # end는 exclusive
+                progress=False
+            )
             
             if data.empty:
+                # period 방식으로 fallback
+                data = yf.download(ticker, period="1mo", progress=False)
+            
+            if data.empty:
+                print(f"   ⚠️ {index_name} 데이터 없음")
                 return {}
             
+            # 마지막 거래일 데이터 사용
             latest = data.iloc[-1]
             prev = data.iloc[-2] if len(data) > 1 else data.iloc[-1]
+            last_date = data.index[-1]
             
-            close = float(latest['Close'])
-            change = close - float(prev['Close'])
-            change_pct = (change / float(prev['Close'])) * 100
+            close = float(latest['Close'].iloc[0] if hasattr(latest['Close'], 'iloc') else latest['Close'])
+            prev_close = float(prev['Close'].iloc[0] if hasattr(prev['Close'], 'iloc') else prev['Close'])
+            change = close - prev_close
+            change_pct = (change / prev_close) * 100
             
             # 이동평균
             closes = data['Close']
+            if hasattr(closes, 'squeeze'):
+                closes = closes.squeeze()
             ma5 = float(closes.tail(5).mean())
-            ma20 = float(closes.tail(20).mean())
+            ma20 = float(closes.tail(20).mean()) if len(closes) >= 20 else float(closes.mean())
             ma60 = float(closes.tail(60).mean()) if len(closes) >= 60 else float(closes.mean())
             
             # 이평선 정렬 상태
-            if close > ma5 > ma20 > ma60:
+            if close > ma5 > ma20:
                 alignment = "정배열"
-            elif close < ma5 < ma20 < ma60:
+            elif close < ma5 < ma20:
                 alignment = "역배열"
             else:
                 alignment = "혼조"
             
             # RSI 계산
-            delta = closes.diff()
-            gain = delta.where(delta > 0, 0).rolling(14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-            rs = gain / loss
-            rsi = 100 - (100 / (1 + rs.iloc[-1]))
+            try:
+                delta = closes.diff()
+                gain = delta.where(delta > 0, 0).rolling(14).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+                rs = gain / loss
+                rsi_val = 100 - (100 / (1 + rs.iloc[-1]))
+                rsi = float(rsi_val) if not pd.isna(rsi_val) else 50.0
+            except:
+                rsi = 50.0
             
-            return {
+            # 휴장일인지 확인
+            is_market_closed = last_date.date() < datetime.now().date()
+            
+            result = {
                 "name": index_name,
                 "close": round(close, 2),
                 "change": round(change, 2),
@@ -176,11 +202,20 @@ class MarketGate:
                 "ma20": round(ma20, 2),
                 "ma60": round(ma60, 2),
                 "alignment": alignment,
-                "rsi": round(float(rsi), 2) if not pd.isna(rsi) else 50.0,
+                "rsi": round(rsi, 2),
+                "last_date": last_date.strftime("%Y-%m-%d"),
             }
+            
+            if is_market_closed:
+                result["is_closed"] = True
+                print(f"   📅 {index_name}: 마지막 거래일 {result['last_date']} 데이터 사용")
+            
+            return result
             
         except Exception as e:
             print(f"   {index_name} 분석 오류: {e}")
+            import traceback
+            traceback.print_exc()
             return {}
     
     def _get_usd_krw(self) -> Dict:

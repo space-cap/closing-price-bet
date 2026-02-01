@@ -72,41 +72,62 @@ export default function KRDashboard() {
                 </div>
             )}
 
+            {/* 휴장일 배너 */}
+            {marketGate?.kospi?.is_closed && (
+                <div className="card" style={{
+                    background: 'rgba(255, 159, 10, 0.1)',
+                    borderColor: 'var(--accent-orange)',
+                    marginBottom: 'var(--spacing-lg)',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '20px' }}>📅</span>
+                        <div>
+                            <p style={{ color: 'var(--accent-orange)', fontWeight: 600 }}>
+                                마지막 거래일: {marketGate.kospi.last_date}
+                            </p>
+                            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                                ⚠️ 주말/휴일에는 참고용으로만 활용하세요. 장 시작 후 데이터가 업데이트됩니다.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <main>
                 {/* 지수 현황 */}
                 <div className="grid-4" style={{ marginBottom: 'var(--spacing-xl)' }}>
-                    {marketGate?.kospi && (
+                    {marketGate?.kospi?.close && (
                         <div className="card">
                             <div className="stat-label">KOSPI</div>
                             <div className="stat-value">{marketGate.kospi.close.toLocaleString()}</div>
-                            <div className={`stat-change ${marketGate.kospi.change_pct >= 0 ? 'positive' : 'negative'}`}>
-                                {marketGate.kospi.change_pct >= 0 ? '+' : ''}{marketGate.kospi.change_pct.toFixed(2)}%
+                            <div className={`stat-change ${(marketGate.kospi.change_pct ?? 0) >= 0 ? 'positive' : 'negative'}`}>
+                                {(marketGate.kospi.change_pct ?? 0) >= 0 ? '+' : ''}{(marketGate.kospi.change_pct ?? 0).toFixed(2)}%
                             </div>
                             <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-                                {marketGate.kospi.alignment}
+                                {marketGate.kospi.alignment || ''}
                             </div>
                         </div>
                     )}
 
-                    {marketGate?.kosdaq && (
+                    {marketGate?.kosdaq?.close && (
                         <div className="card">
                             <div className="stat-label">KOSDAQ</div>
                             <div className="stat-value">{marketGate.kosdaq.close.toLocaleString()}</div>
-                            <div className={`stat-change ${marketGate.kosdaq.change_pct >= 0 ? 'positive' : 'negative'}`}>
-                                {marketGate.kosdaq.change_pct >= 0 ? '+' : ''}{marketGate.kosdaq.change_pct.toFixed(2)}%
+                            <div className={`stat-change ${(marketGate.kosdaq.change_pct ?? 0) >= 0 ? 'positive' : 'negative'}`}>
+                                {(marketGate.kosdaq.change_pct ?? 0) >= 0 ? '+' : ''}{(marketGate.kosdaq.change_pct ?? 0).toFixed(2)}%
                             </div>
                             <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-                                {marketGate.kosdaq.alignment}
+                                {marketGate.kosdaq.alignment || ''}
                             </div>
                         </div>
                     )}
 
-                    {marketGate?.usd_krw && (
+                    {marketGate?.usd_krw?.rate && (
                         <div className="card">
                             <div className="stat-label">USD/KRW</div>
                             <div className="stat-value">{marketGate.usd_krw.rate.toLocaleString()}</div>
-                            <div className={`stat-change ${marketGate.usd_krw.change_pct >= 0 ? 'negative' : 'positive'}`}>
-                                {marketGate.usd_krw.change_pct >= 0 ? '+' : ''}{marketGate.usd_krw.change_pct.toFixed(2)}%
+                            <div className={`stat-change ${(marketGate.usd_krw.change_pct ?? 0) >= 0 ? 'negative' : 'positive'}`}>
+                                {(marketGate.usd_krw.change_pct ?? 0) >= 0 ? '+' : ''}{(marketGate.usd_krw.change_pct ?? 0).toFixed(2)}%
                             </div>
                         </div>
                     )}
