@@ -1,0 +1,27 @@
+# Web Framework
+flask
+gunicorn
+flask-cors
+
+# Data & Finance
+yfinance
+pandas
+numpy
+pykrx
+FinanceDataReader
+
+# AI/LLM
+google-generativeai
+openai
+
+# Utilities
+requests
+tqdm
+python-dotenv
+beautifulsoup4
+lxml
+lxml_html_clean
+aiohttp
+
+# Visualization
+plotly
